@@ -16,6 +16,7 @@ volatile Screen *temp;
 
 volatile uint8_t *spi;
 volatile char spilen = -1;
+volatile byte line = 0;
 
 ISR(SPI_STC_vect) {
   spilen--;
@@ -27,6 +28,16 @@ ISR(SPI_STC_vect) {
   }
 }
   
+ISR(TIMER1_COMPA_vect) {
+  digitalWrite(led, !digitalRead(led));
+  line = line & 0xF;
+  spi = (**front)+8*line;
+  spilen = 8;
+  SPCR |= _BV(SPIE);
+  SPI_STC_vect();
+  line++;
+}
+
 // the setup routine runs once when you press reset:
 void setup() {
   SPI.begin();
@@ -35,7 +46,19 @@ void setup() {
 
   front = (Screen*)malloc(16*8);
   back = (Screen*)malloc(16*8);
+  pinMode(led, OUTPUT);
+  digitalWrite(led, LOW);
   
+  // setup timer
+  cli();
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TIMSK1 = (1 << OCIE1A);
+  OCR1A = 15624;
+  TCCR1B |= (1 << WGM12);
+  TCCR1B |= (1 << CS10);
+  sei();
+
 }
 
 void pset(byte x, byte y, byte color) {
@@ -83,24 +106,14 @@ void loop() {
   y = (y+1) & 0xF;
   
   if(y==0) {
-    while(spilen >= 0);
-    
     temp = front;
     front = back;
     back = temp;
     time++;
     t+=30;
     
-    spi = **front;
-    
     v = sint[time & 0xFF] * 1600;
     xstretch = sint[time/8 & 0xFF] * 20 + 30;
     ystretch = sint[(time+0x100)/4 & 0xFF] * 20 + 30;
   }
-
-  while(spilen >= 0);
-  spilen = 8;
-  SPCR |= _BV(SPIE);
-  SPI_STC_vect();
-
 }
