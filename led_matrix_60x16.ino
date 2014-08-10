@@ -42,6 +42,14 @@ ISR(TIMER1_COMPA_vect) {
 #endif
 }
 
+// fixes row driver in back buffer. used just before swap
+void fix_rows() {
+  for(int y=0;y<=0xF;y++) {
+    (*back)[y][7] = ((*back)[y][7] & 0xF0) | (y & 0x0F);
+  }
+
+}
+
 // the setup routine runs once when you press reset:
 void setup() {
   SPI.begin();
@@ -57,16 +65,28 @@ void setup() {
 #ifdef TEST_PATTERN1
   memset((void*)front, ~0xAA, 16*8);
   memset((void*)back, 0xAA, 16*8);
-#endif  
+
+  fix_rows();
+  swap_nowait();
+  fix_rows();
+#endif
   
   // setup timer
   cli();
   TCCR1A = 0;
   TCCR1B = 0;
   TIMSK1 = (1 << OCIE1A);
-  OCR1A = 15624;
+//  OCR1A = 15624;
+  OCR1A = 1111 * 9; // 1111 multiplied with most small numbers end up with ok refresh rates without issues.. =D
   TCCR1B |= (1 << WGM12);
   TCCR1B |= (1 << CS10);
+  
+/*
+  // magical annoy frequency
+  OCR1A = 15624/4;
+  TCCR1B |= (1 << CS11);
+*/
+
   sei();
 
 }
@@ -83,8 +103,22 @@ inline void bset(byte x, byte y, byte value) {
   (*back)[y][x] = value;
 }
 
+inline void swap_nowait() {
+  temp = front;
+  front = back;
+  back = temp;  
+}
+
+inline void swap() {
+  while(line<=0xF);
+  while(spilen>=0); // draw whole screen and then swap
+  cli();
+  swap_nowait();
+  sei();
+}
+
 // the loop routine runs over and over again forever:
-void loop() {
+void loop_effect() {
   static byte y = 0;
   static byte t = 0;
   static unsigned int time = 0;
@@ -116,11 +150,9 @@ void loop() {
   y = (y+1) & 0xF;
   
   if(y==0) {
-    temp = front;
-    front = back;
-    back = temp;
+    swap();
     time++;
-    t+=30;
+    t+=10;
     
     v = sint[time & 0xFF] * 1600;
     xstretch = sint[time/8 & 0xFF] * 20 + 30;
@@ -129,11 +161,11 @@ void loop() {
 }
 
 void loop_death_blink() {
-  for(int y=0;y<=0xF;y++) {
-    (*back)[y][7] = ((*back)[y][7] & 0xF0) | (y & 0x0F);
-  }
+  fix_rows();
   swap();
 }
+
 void loop() {
-  loop_death_blink();
+//  loop_death_blink();
+  loop_effect();
 }
