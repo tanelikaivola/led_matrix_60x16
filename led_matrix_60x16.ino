@@ -1,6 +1,7 @@
 #include <SPI.h>
 
 #define INTERLACE
+#define TEST_PATTERN1
 
 typedef byte Screen[16][8];
 
@@ -49,6 +50,14 @@ void setup() {
 
   front = (Screen*)malloc(16*8);
   back = (Screen*)malloc(16*8);
+  
+  memset((void*)front, 0, 16*8);
+  memset((void*)back, 0, 16*8);
+
+#ifdef TEST_PATTERN1
+  memset((void*)front, ~0xAA, 16*8);
+  memset((void*)back, 0xAA, 16*8);
+#endif  
   
   // setup timer
   cli();
@@ -117,4 +126,14 @@ void loop() {
     xstretch = sint[time/8 & 0xFF] * 20 + 30;
     ystretch = sint[(time+0x100)/4 & 0xFF] * 20 + 30;
   }
+}
+
+void loop_death_blink() {
+  for(int y=0;y<=0xF;y++) {
+    (*back)[y][7] = ((*back)[y][7] & 0xF0) | (y & 0x0F);
+  }
+  swap();
+}
+void loop() {
+  loop_death_blink();
 }
