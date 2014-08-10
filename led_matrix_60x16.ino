@@ -1,7 +1,6 @@
 #include <SPI.h>
 
-byte led = 13;
-volatile static byte on = 0;
+#define INTERLACE
 
 typedef byte Screen[16][8];
 
@@ -29,13 +28,17 @@ ISR(SPI_STC_vect) {
 }
   
 ISR(TIMER1_COMPA_vect) {
-  digitalWrite(led, !digitalRead(led));
   line = line & 0xF;
-  spi = (**front)+8*line;
+  spi = (**front) + 8*line;
   spilen = 8;
   SPCR |= _BV(SPIE);
   SPI_STC_vect();
-  line++;
+
+#ifdef INTERLACE
+  line+=3; // interlace to reduce blink
+#else
+  line++; // just do it
+#endif
 }
 
 // the setup routine runs once when you press reset:
@@ -46,8 +49,6 @@ void setup() {
 
   front = (Screen*)malloc(16*8);
   back = (Screen*)malloc(16*8);
-  pinMode(led, OUTPUT);
-  digitalWrite(led, LOW);
   
   // setup timer
   cli();
